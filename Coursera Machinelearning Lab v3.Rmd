@@ -1,0 +1,158 @@
+---
+title: "Coursera Machine learning v2"
+author: "Hennie"
+date: "8 juni 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+
+## Initialize the environment
+
+First lets setup the environment
+
+```{r, echo=FALSE}
+
+#####################################################################################################
+# Initialisation
+#####################################################################################################
+rm(list = ls())
+setwd("D:/Certificering/Coursera/Coursera Data Science Specialization (R)/8. Practical Machine learning/5. Course project/")
+getwd()
+
+#install.packages('e1071', dependencies=TRUE)
+
+library(caret)
+library(corrplot)
+#library(rpart)
+#library(rpart.plot)
+#library(rattle)
+library(randomForest)
+
+set.seed(12345)
+```
+
+## Loading the data
+
+Reding the sets of data in  and change the date in a appriopriate format
+```{r Read}
+
+#####################################################################################################
+# Read dfAWCustomers and dfAWSales
+#####################################################################################################
+dfpmlTesting <- read.csv("pml-testing.csv", header = TRUE, sep = ",", na.strings = c("NA", "#DIV/0!", ""))
+dfpmlTraining <- read.csv("pml-training.csv", header = TRUE, sep = ",",  na.strings = c("NA", "#DIV/0!", ""))
+
+dfpmlTraining$cvtd_timestamp<- as.Date(dfpmlTraining$cvtd_timestamp, format = "%m/%d/%Y %H:%M")
+dfpmlTraining$Day<-factor(weekdays(dfpmlTraining$cvtd_timestamp)) #Add day variable
+
+```
+
+
+## Explorative data analysis
+Now do some explorative analysis of the data and create 
+
+```{r Explore}
+
+names(dfpmlTraining)
+#str(dfpmlTraining)
+#summary(dfpmlTraining)
+dim(dfpmlTraining)
+dim(dfpmlTesting)
+
+table(dfpmlTraining$classe) 
+
+prop.table(table(dfpmlTraining$classe))
+
+```
+
+
+
+
+## Some cleanup
+Below some cleanup of the data takes place. rows with NAs are cleaned up and columns that are needed for this assignment are deleted.
+
+```{r clean, echo=FALSE}
+dfpmlTraining <- dfpmlTraining[, colSums(is.na(dfpmlTraining)) == 0]
+dfpmlTesting <- dfpmlTesting[, colSums(is.na(dfpmlTesting)) == 0] 
+
+#Remove the first 6 columns because these are not useful for predicting
+dfpmlTraining <- dfpmlTraining[,7:length(dfpmlTraining)]
+
+
+
+```
+
+
+
+## Creating a training set
+Next sep is to create a training set of the data in a 70% / 30 %.
+
+```{r Train, echo=FALSE}
+set.seed(1233)
+dfpmlTrainPar  <- createDataPartition(dfpmlTraining$classe, p=0.70, list=FALSE)
+TrainingSet <- dfpmlTraining[dfpmlTrainPar, ]
+TestSet  <- dfpmlTraining[-dfpmlTrainPar, ]
+dim(TrainingSet)
+dim(TestSet)
+#summary(TrainingSet)
+
+```
+
+
+
+
+## Making a correlation matrix
+Let's see how the data is correlated. Some of the variables are highly correlated and some are negatively correlated
+
+```{r Corr, echo=FALSE}
+corMatrix <- cor(TrainingSet[, -length(names(TrainingSet))])
+corrplot(corMatrix, order = "FPC", method = "circle", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+
+
+```
+
+
+
+## Learning the random forest
+Now it's time to train the data model. Below a Random forest model is trained by the train function
+
+```{r Forest, echo=FALSE}
+
+set.seed(321)
+gridtune <- expand.grid(.mtry=c(2))
+TRcontrol <- trainControl(method="repeatedcv", number=2, repeats=1, search="grid")
+RandomForestModel <- train(classe ~ ., data = TrainingSet, method = "rf", 
+                           tuneGrid=gridtune, trControl=TRcontrol)
+```
+
+
+## Testing the model with the original testset
+Now checking the testset from the assignment and see what the outcome is.
+
+```{r test, echo=FALSE}
+
+prediction <- predict(RandomForestModel, dfpmlTesting, type = "raw")
+print(prediction)
+
+```
